@@ -2,11 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Solar Resource Viewer (DC Output)</title>
-  <link rel="stylesheet" href="https://js.arcgis.com/4.25/esri/themes/light/main.css" />
+  <title>Solar Resource Viewer</title>
+  <link
+    rel="stylesheet"
+    href="https://js.arcgis.com/4.25/esri/themes/light/main.css"
+  />
   <script src="https://js.arcgis.com/4.25/"></script>
   <style>
-    html, body, #viewDiv {
+    html,
+    body,
+    #viewDiv {
       height: 100%;
       margin: 0;
       padding: 0;
@@ -20,90 +25,93 @@
       "esri/Map",
       "esri/views/MapView",
       "esri/Graphic"
-    ], function(Map, MapView, Graphic) {
-
+    ], function (Map, MapView, Graphic) {
       const apiKey = "ZTxykdcgo6jCUJMv88T7JcKbmZGjIyBeWd4dAXY9";
 
       const map = new Map({
-        basemap: "hybrid"  // Satellite with labels
+        basemap: "satellite",  // hybrid isn't a valid ArcGIS basemap ID
       });
 
       const view = new MapView({
         container: "viewDiv",
         map: map,
-        center: [-99.9, 31.0],  // Texas
+        center: [-99.9018, 31.9686], // Center on Texas
         zoom: 6
       });
 
-      // PVWatts v6 system config
-      const system_capacity = 100000; // 250 MW (in kW)
-      const azimuth = 180;
-      const tilt = 30;
-      const array_type = 2;  // Single-axis tracker
-      const module_type = 1;
-      const losses = 10;
+      // Add reference layer for labels
+      view.map.basemap.referenceLayers = [{
+        portalItem: {
+          id: "10df2279f9684e4a9f6a7f08febac2a9" // World Boundaries and Places
+        }
+      }];
 
-      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      // PVWatts parameters
+      const azimuth = 180;         // South-facing
+      const system_capacity = 100000; // 100 MW
+      const tilt = 30;             // Tilt angle
+      const array_type = 2;        // 2 = Fixed open rack
+      const module_type = 1;       // 1 = Standard
+      const losses = 22.5;           // 22.5% system losses
 
-      view.on("click", function(event) {
+      view.on("click", function (event) {
         const lat = event.mapPoint.latitude;
         const lon = event.mapPoint.longitude;
 
-        const url = `https://developer.nrel.gov/api/pvwatts/v6.json?` +
-          `api_key=${apiKey}&lat=${lat}&lon=${lon}` +
-          `&system_capacity=${system_capacity}` +
-          `&azimuth=${azimuth}&tilt=${tilt}` +
-          `&array_type=${array_type}` +
-          `&module_type=${module_type}&losses=${losses}`;
+        const url = `https://developer.nrel.gov/api/pvwatts/v6.json?api_key=${apiKey}&lat=${lat}&lon=${lon}&system_capacity=${system_capacity}&azimuth=${azimuth}&tilt=${tilt}&array_type=${array_type}&module_type=${module_type}&losses=${losses}`;
 
         fetch(url)
-          .then(response => {
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return response.json();
-          })
+          .then(response => response.json())
           .then(data => {
             if (data.outputs) {
-              const dcAnnual = data.outputs.dc_annual;
-              const dcMonthly = data.outputs.dc_monthly;
-              const solradAnnual = data.outputs.solrad_annual;
+              const ac_annual = data.outputs.ac_annual;
+              const dc_monthly = data.outputs.dc_monthly;
+              const solrad_annual = data.outputs.solrad_annual;
 
-              const monthlyStr = Array.isArray(dcMonthly)
-                ? dcMonthly.map((val, i) => `${monthNames[i]}: ${(val / 1000).toFixed(2)} MWh`).join("<br>")
+              const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+              const monthlyStr = Array.isArray(dc_monthly)
+                ? dc_monthly.map((val, i) => `${monthNames[i]}: ${(val / 1000).toFixed(1)} MWh`).join("<br>")
                 : "N/A";
 
+              // Remove previous graphics
               view.graphics.removeAll();
 
-              const marker = new Graphic({
+              const pointGraphic = new Graphic({
                 geometry: event.mapPoint,
                 symbol: {
                   type: "simple-marker",
                   color: "yellow",
                   size: "12px",
-                  outline: { color: "black", width: 1 }
+                  outline: {
+                    color: "black",
+                    width: 1
+                  }
                 },
                 popupTemplate: {
-                  title: `Solar DC Output @ ${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+                  title: `Solar Output at [${lat.toFixed(4)}, ${lon.toFixed(4)}]`,
                   content: `
-                    <b>DC Annual Energy:</b> ${(dcAnnual / 1000).toFixed(2)} MWh<br/>
-                    <b>Annual Solar Irradiation:</b> ${solradAnnual.toFixed(2)} kWh/m²/day<br/><br/>
-                    <b>DC Monthly Output (MWh):</b><br/>${monthlyStr}
+                    <b>Annual AC Output:</b> ${(ac_annual / 1000).toFixed(1)} MWh<br/>
+                    <b>Annual Solar Irradiation:</b> ${solrad_annual.toFixed(2)} kWh/m²/day<br/>
+                    <b>Monthly DC Output:</b><br/>${monthlyStr}
                   `
                 }
               });
 
-              view.graphics.add(marker);
+              view.graphics.add(pointGraphic);
               view.popup.open({
                 location: event.mapPoint,
-                title: marker.popupTemplate.title,
-                content: marker.popupTemplate.content
+                title: pointGraphic.popupTemplate.title,
+                content: pointGraphic.popupTemplate.content
               });
             } else {
-              alert("No solar data available for this location.");
+              alert("No solar data returned for this location.");
             }
           })
           .catch(err => {
-            console.error("Error:", err);
-            alert("Error retrieving solar data: " + err.message);
+            console.error(err);
+            alert("Error retrieving solar data.");
           });
       });
     });
