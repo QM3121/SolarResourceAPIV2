@@ -23,98 +23,89 @@
       "esri/Map",
       "esri/views/MapView",
       "esri/Graphic"
-    ], function (Map, MapView, Graphic) {
+    ], function(Map, MapView, Graphic) {
       const apiKey = "ZTxykdcgo6jCUJMv88T7JcKbmZGjIyBeWd4dAXY9";
 
       const map = new Map({
-        basemap: "satellite"
+        basemap: "hybrid"  // Satellite imagery with labels
       });
 
       const view = new MapView({
         container: "viewDiv",
         map: map,
-        center: [-99.9018, 31.9686],
+        center: [-99.9, 31.0],
         zoom: 6
       });
 
-      // Add reference labels layer for 'hybrid' appearance
-      view.map.basemap.referenceLayers = [{
-        portalItem: {
-          id: "10df2279f9684e4a9f6a7f08febac2a9"
-        }
-      }];
-
-      // PVWatts parameters
-      const system_capacity = 100000; // 250 MW
+      const system_capacity = 100000; // 100 MW in kW
       const azimuth = 180;
       const tilt = 30;
-      const array_type = 2; // Fixed open rack
-      const module_type = 1; // Standard
+      const array_type = 2; // single-axis tracker
+      const module_type = 1;
       const losses = 22.5;
 
-      view.on("click", function (event) {
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+      view.on("click", function(event) {
         const lat = event.mapPoint.latitude;
         const lon = event.mapPoint.longitude;
-
         const url = `https://developer.nrel.gov/api/pvwatts/v6.json?api_key=${apiKey}&lat=${lat}&lon=${lon}&system_capacity=${system_capacity}&azimuth=${azimuth}&tilt=${tilt}&array_type=${array_type}&module_type=${module_type}&losses=${losses}`;
 
         fetch(url)
-          .then(response => response.json())
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+          })
           .then(data => {
             if (data.outputs) {
-              const ac_annual = data.outputs.ac_annual;
-              const dc_monthly = data.outputs.dc_monthly;
-              const solrad_annual = data.outputs.solrad_annual;
+              const acAnn = data.outputs.ac_annual;
+              const dcMo = data.outputs.dc_monthly;
+              const solAnn = data.outputs.solrad_annual;
 
-              const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-              const monthlyStr = Array.isArray(dc_monthly)
-                ? dc_monthly.map((val, i) => `${monthNames[i]}: ${(val / 1000).toFixed(1)} MWh`).join("<br>")
+              const dcMonthlyStr = Array.isArray(dcMo)
+                ? dcMo.map((val,i) => `${monthNames[i]}: ${(val/1000).toFixed(1)} MWh`).join("<br>")
                 : "N/A";
 
               view.graphics.removeAll();
-
-              const pointGraphic = new Graphic({
+              const marker = new Graphic({
                 geometry: event.mapPoint,
                 symbol: {
                   type: "simple-marker",
                   color: "yellow",
                   size: "12px",
-                  outline: {
-                    color: "black",
-                    width: 1
-                  }
+                  outline: { color: "black", width: 1 }
                 },
                 popupTemplate: {
-                  title: `Solar Output at [${lat.toFixed(4)}, ${lon.toFixed(4)}]`,
+                  title: `Solar @ ${lat.toFixed(4)}, ${lon.toFixed(4)}`,
                   content: `
-                    <b>Annual AC Output:</b> ${(ac_annual / 1000).toFixed(1)} MWh<br/>
-                    <b>Annual Solar Irradiation:</b> ${solrad_annual.toFixed(2)} kWh/m²/day<br/>
-                    <b>Monthly DC Output:</b><br/>${monthlyStr}
+                    <b>Annual AC Output:</b> ${(acAnn/1000).toFixed(1)} MWh<br/>
+                    <b>Annual Solar Irradiation:</b> ${solAnn.toFixed(2)} kWh/m²/day<br/><br/>
+                    <b>Monthly DC Output (MWh):</b><br/>${dcMonthlyStr}
                   `
                 }
               });
 
-              view.graphics.add(pointGraphic);
+              view.graphics.add(marker);
               view.popup.open({
                 location: event.mapPoint,
-                title: pointGraphic.popupTemplate.title,
-                content: pointGraphic.popupTemplate.content
+                title: marker.popupTemplate.title,
+                content: marker.popupTemplate.content
               });
+
             } else {
-              alert("No solar data available for this location.");
+              alert("No outputs from API");
             }
           })
           .catch(err => {
             console.error(err);
-            alert("Error retrieving solar resource data.");
+            alert("Error: " + err.message);
           });
       });
     });
   </script>
 </body>
 </html>
+
 
 
 
