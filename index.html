@@ -9,9 +9,7 @@
   />
   <script src="https://js.arcgis.com/4.25/"></script>
   <style>
-    html,
-    body,
-    #viewDiv {
+    html, body, #viewDiv {
       height: 100%;
       margin: 0;
       padding: 0;
@@ -29,30 +27,30 @@
       const apiKey = "ZTxykdcgo6jCUJMv88T7JcKbmZGjIyBeWd4dAXY9";
 
       const map = new Map({
-        basemap: "satellite",  // hybrid isn't a valid ArcGIS basemap ID
+        basemap: "satellite"
       });
 
       const view = new MapView({
         container: "viewDiv",
         map: map,
-        center: [-99.9018, 31.9686], // Center on Texas
+        center: [-99.9018, 31.9686],
         zoom: 6
       });
 
-      // Add reference layer for labels
+      // Add reference labels layer for 'hybrid' appearance
       view.map.basemap.referenceLayers = [{
         portalItem: {
-          id: "10df2279f9684e4a9f6a7f08febac2a9" // World Boundaries and Places
+          id: "10df2279f9684e4a9f6a7f08febac2a9"
         }
       }];
 
       // PVWatts parameters
-      const azimuth = 180;         // South-facing
-      const system_capacity = 100000; // 100 MW
-      const tilt = 30;             // Tilt angle
-      const array_type = 2;        // 2 = Fixed open rack
-      const module_type = 1;       // 1 = Standard
-      const losses = 22.5;           // 22.5% system losses
+      const system_capacity = 100000; // 250 MW
+      const azimuth = 180;
+      const tilt = 30;
+      const array_type = 2; // Fixed open rack
+      const module_type = 1; // Standard
+      const losses = 22.5;
 
       view.on("click", function (event) {
         const lat = event.mapPoint.latitude;
@@ -75,7 +73,6 @@
                 ? dc_monthly.map((val, i) => `${monthNames[i]}: ${(val / 1000).toFixed(1)} MWh`).join("<br>")
                 : "N/A";
 
-              // Remove previous graphics
               view.graphics.removeAll();
 
               const pointGraphic = new Graphic({
@@ -106,12 +103,12 @@
                 content: pointGraphic.popupTemplate.content
               });
             } else {
-              alert("No solar data returned for this location.");
+              alert("No solar data available for this location.");
             }
           })
           .catch(err => {
             console.error(err);
-            alert("Error retrieving solar data.");
+            alert("Error retrieving solar resource data.");
           });
       });
     });
